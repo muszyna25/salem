@@ -890,6 +890,21 @@ class TestXarray(unittest.TestCase):
         assert_allclose(out[:, 0].reshape(ii.shape), xx, atol=1e-7)
         assert_allclose(out[:, 1].reshape(ii.shape), yy, atol=1e-7)
 
+    def test_cordex_rotated(self):
+
+        ds = sio.open_xr_dataset(get_demo_file('rotated_cordex.nc'))
+
+        # One way
+        mylons, mylats = ds.salem.grid.ll_coordinates
+        assert_allclose(mylons, ds.lon, atol=1e-7)
+        assert_allclose(mylats, ds.lat, atol=1e-7)
+
+        # Round trip
+        i, j = ds.salem.grid.transform(mylons, mylats)
+        ii, jj = ds.salem.grid.ij_coordinates
+        assert_allclose(i, ii, atol=1e-7)
+        assert_allclose(j, jj, atol=1e-7)
+
 
 class TestGeogridSim(unittest.TestCase):
 

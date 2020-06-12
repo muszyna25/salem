@@ -706,6 +706,9 @@ class Grid(object):
             x, y = _crs.ij_to_crs(x, y, crs=self.proj)
 
         # Then to local grid
+        if 'latlon' in self.proj.srs and (self.x0 + self.nx * self.dx) > 180.:
+            x = np.where(x < 0, x + 360, x)
+
         x = (x - self.x0) / self.dx
         y = (y - self.y0) / self.dy
 

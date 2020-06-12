@@ -239,6 +239,56 @@ def _wrf_grid_from_dataset(ds):
     return grid
 
 
+def _rotated_grid_from_dataset(ds):
+    """Get the rotated projection out of the file."""
+
+    lon_0 = ds.rotated_pole.attrs['grid_north_pole_longitude']
+    lat_0 = ds.rotated_pole.attrs['grid_north_pole_latitude']
+    p4 = ('+ellps=WGS84 +proj=ob_tran +o_proj=latlon'
+          ' +lon_0={} +o_lat_p={}'.format(lon_0-180, lat_0))
+    proj = gis.check_crs(p4)
+    if proj is None:
+        raise RuntimeError('Rotated proj not understood: {}'.format(p4))
+
+    # Here we have to accept xarray and netCDF4 datasets
+    try:
+        nx = len(ds.dimensions['rlon'])
+        ny = len(ds.dimensions['rlat'])
+    except AttributeError:
+        # maybe an xarray dataset
+        nx = ds.dims['rlon']
+        ny = ds.dims['rlat']
+
+    rlon = ds.variables['rlon']
+    rlat = ds.variables['rlat']
+
+    grid = gis.Grid(nxny=(nx, ny), x0y0=(rlon[0], rlat[0]),
+                    dxdy=(rlon[1]-rlon[0], rlat[1]-rlat[0]), proj=proj)
+
+    if True:
+        #  Temporary asserts
+        reflon = ds.variables['lon']
+        reflat = ds.variables['lat']
+        mylon, mylat = grid.ll_coordinates
+        atol = 1e-5
+        check = np.isclose(reflon, mylon, atol=atol)
+        if not np.alltrue(check):
+            n_pix = np.sum(~check)
+            maxe = np.max(np.abs(reflon - mylon))
+            warnings.warn('For {} grid points, the expected accuracy '
+                          'of our lons did not match those of the '
+                          'file. Max error: {}'.format(n_pix,  maxe))
+        check = np.isclose(reflat, mylat, atol=atol)
+        if not np.alltrue(check):
+            n_pix = np.sum(~check)
+            maxe = np.max(np.abs(reflat - mylat))
+            warnings.warn('For {} grid points, the expected accuracy '
+                          'of our LATS did not match those of the '
+                          'file. Max error: {}'.format(n_pix,  maxe))
+
+    return grid
+
+
 def _lonlat_grid_from_dataset(ds):
     """Seek for longitude and latitude coordinates."""
 
@@ -343,6 +393,10 @@ def grid_from_dataset(ds):
     if hasattr(ds, 'MOAD_CEN_LAT') or hasattr(ds, 'PROJ_ENVI_STRING'):
         # WRF and HAR have some special attributes
         return _wrf_grid_from_dataset(ds)
+
+    # What about rotated grid?
+    if 'rotated_pole' in ds:
+        return _rotated_grid_from_dataset(ds)
 
     # Try out platte carree
     return _lonlat_grid_from_dataset(ds)
